@@ -1,11 +1,14 @@
 from pathlib import Path
 
+import cv2
+import numpy as np
 from PIL import Image, ImageDraw, ImageEnhance, ImageFont
 
 from app.render.spec import ImageSlot, TemplateSpec, TextSlot
 
 FONT_DIR = Path("assets/fonts")
-ASSET_DIR = Path("templates")
+TPL_DIR = Path("templates")
+K5 = np.ones((5, 5), np.uint8)
 
 
 def _font(name: str, size: int) -> ImageFont.FreeTypeFont:
@@ -20,13 +23,13 @@ def _text_w(draw, text: str, font, spacing: float) -> int:
 
 def _wrap(draw, text: str, font, max_w: int, spacing: float) -> list[str]:
     words, lines, cur = text.split(), [], ""
-    for w in words:
-        trial = f"{cur} {w}".strip()
+    for word in words:
+        trial = f"{cur} {word}".strip()
         if _text_w(draw, trial, font, spacing) <= max_w or not cur:
             cur = trial
         else:
             lines.append(cur)
-            cur = w
+            cur = word
     if cur:
         lines.append(cur)
     return lines
@@ -49,9 +52,9 @@ def _draw_line(draw, x: int, y: int, text: str, font, fill: str, spacing: float)
         draw.text((x, y), text, font=font, fill=fill)
         return
     cx = x
-    for ch in text:
-        draw.text((cx, y), ch, font=font, fill=fill)
-        cx += draw.textlength(ch, font=font) + spacing
+    for char in text:
+        draw.text((cx, y), char, font=font, fill=fill)
+        cx += draw.textlength(char, font=font) + spacing
 
 
 def _stamp_text(draw: ImageDraw.ImageDraw, text: str, slot: TextSlot) -> None:
@@ -81,6 +84,44 @@ def _stamp_text(draw: ImageDraw.ImageDraw, text: str, slot: TextSlot) -> None:
         cy += lh
 
 
+def _ink_mask(crop: np.ndarray, ink: str) -> np.ndarray:
+    if ink == "light":
+        gray = cv2.cvtColor(crop, cv2.COLOR_RGB2GRAY)
+        mask = (gray > int(np.median(gray)) + 35).astype(np.uint8)
+    elif ink == "red":
+        r, g, b = (crop[:, :, i].astype(int) for i in range(3))
+        mask = ((r - g > 40) & (r - b > 40)).astype(np.uint8)
+    else:
+        gray = cv2.cvtColor(crop, cv2.COLOR_RGB2GRAY)
+        mask = (gray < int(np.median(gray)) - 35).astype(np.uint8)
+    return cv2.dilate(mask, K5, iterations=2)
+
+
+def _scrub(base: Image.Image, slot) -> None:
+    """Remove the plate's existing value so the new one stamps onto clean card."""
+    x1, y1, x2, y2 = slot.box
+    crop = np.array(base.crop(slot.box).convert("RGB"))
+    ink = getattr(slot, "ink", "dark")
+
+    if ink == "none":
+        return
+
+    if ink == "ghost":
+        low = cv2.blur(crop, (41, 41))
+        high = crop.astype(np.int16) - low.astype(np.int16)
+        full = np.full(crop.shape[:2], 255, np.uint8)
+        cleaned = np.clip(
+            cv2.inpaint(low, full, 15, cv2.INPAINT_TELEA).astype(np.int16) + high, 0, 255
+        ).astype(np.uint8)
+    else:
+        mask = _ink_mask(crop, ink)
+        if not mask.any():
+            return
+        cleaned = cv2.inpaint(crop, mask, 4, cv2.INPAINT_TELEA)
+
+    base.paste(Image.fromarray(cleaned), (x1, y1))
+
+
 def _paste_image(base: Image.Image, src: Image.Image, slot: ImageSlot) -> None:
     x1, y1, x2, y2 = slot.box
     w, h = x2 - x1, y2 - y1
@@ -89,26 +130,27 @@ def _paste_image(base: Image.Image, src: Image.Image, slot: ImageSlot) -> None:
     if slot.desaturate:
         img = ImageEnhance.Contrast(img.convert("L").convert("RGBA")).enhance(slot.contrast)
 
-    ratio = max(w / img.width, h / img.height) if slot.fit == "cover" \
-        else min(w / img.width, h / img.height)
-    img = img.resize((max(1, int(img.width * ratio)), max(1, int(img.height * ratio))), Image.LANCZOS)
-
+    ratio = max(w / img.width, h / img.height) if slot.fit == "cover" else min(
+        w / img.width, h / img.height
+    )
+    img = img.resize(
+        (max(1, int(img.width * ratio)), max(1, int(img.height * ratio))), Image.LANCZOS
+    )
     left = (img.width - w) // 2
     top = (img.height - h) // 2
     img = img.crop((left, top, left + w, top + h))
 
     if slot.opacity < 1.0:
-        a = img.getchannel("A").point(lambda v: int(v * slot.opacity))
-        img.putalpha(a)
+        img.putalpha(img.getchannel("A").point(lambda v: int(v * slot.opacity)))
 
-    if slot.mask == "circle":
-        mask = Image.new("L", (w, h), 0)
-        ImageDraw.Draw(mask).ellipse((0, 0, w - 1, h - 1), fill=255)
-        img.putalpha(Image.composite(img.getchannel("A"), Image.new("L", (w, h), 0), mask))
-    elif slot.mask == "rounded":
-        mask = Image.new("L", (w, h), 0)
-        ImageDraw.Draw(mask).rounded_rectangle((0, 0, w - 1, h - 1), slot.radius, fill=255)
-        img.putalpha(Image.composite(img.getchannel("A"), Image.new("L", (w, h), 0), mask))
+    if slot.mask in ("circle", "rounded"):
+        shape = Image.new("L", (w, h), 0)
+        pen = ImageDraw.Draw(shape)
+        if slot.mask == "circle":
+            pen.ellipse((0, 0, w - 1, h - 1), fill=255)
+        else:
+            pen.rounded_rectangle((0, 0, w - 1, h - 1), slot.radius, fill=255)
+        img.putalpha(Image.composite(img.getchannel("A"), Image.new("L", (w, h), 0), shape))
 
     base.paste(img, (x1, y1), img)
 
@@ -121,33 +163,26 @@ def render(
     mode: str = "card",
 ) -> Path:
     photos = photos or {}
-    base = Image.open(ASSET_DIR / spec.plate).convert("RGBA")
-    eraser = Image.open(ASSET_DIR / spec.eraser).convert("RGBA") if spec.eraser else None
+    base = Image.open(TPL_DIR / spec.plate).convert("RGBA")
 
-    # 1 — erase every dynamic region using the clean plate
-    if eraser:
-        for slot in spec.slots:
-            if slot.patch:
-                base.paste(eraser.crop(slot.box), (slot.box[0], slot.box[1]))
+    for slot in spec.slots:
+        if slot.patch:
+            _scrub(base, slot)
 
-    # 2 — images that sit behind text (ghost portrait)
     for slot in spec.image_slots():
         if slot.behind_text and slot.key in photos:
             _paste_image(base, photos[slot.key], slot)
 
-    # 3 — foreground images (portrait)
     for slot in spec.image_slots():
         if not slot.behind_text and slot.key in photos:
             _paste_image(base, photos[slot.key], slot)
 
-    # 4 — text
     draw = ImageDraw.Draw(base)
     for slot in spec.text_slots():
-        val = str(values.get(slot.key, "") or "").strip()
-        if val:
-            _stamp_text(draw, val, slot)
+        value = str(values.get(slot.key, "") or "").strip()
+        if value:
+            _stamp_text(draw, value, slot)
 
-    # 5 — output framing
     if mode == "flat" and spec.bezel_crop:
         base = base.crop(spec.bezel_crop)
 
