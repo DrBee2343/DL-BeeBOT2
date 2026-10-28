@@ -9,10 +9,11 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     bot_token: str
-    webhook_secret: str
-    base_url: str
-    database_url: str
-    redis_url: str
+    webhook_secret: str = "devsecret"
+    base_url: str = ""
+
+    database_url: str = "sqlite+aiosqlite:////data/bot.db"
+    redis_url: str = ""
 
     admin_ids: str = ""
     data_dir: str = "/data"
@@ -32,18 +33,12 @@ class Settings(BaseSettings):
     @field_validator("database_url")
     @classmethod
     def _async_driver(cls, value: str) -> str:
+        value = value.strip()
         if value.startswith("postgres://"):
             return value.replace("postgres://", "postgresql+asyncpg://", 1)
         if value.startswith("postgresql://"):
             return value.replace("postgresql://", "postgresql+asyncpg://", 1)
         return value
-
-    @field_validator("redis_url")
-    @classmethod
-    def _redis_scheme(cls, value: str) -> str:
-        if value.startswith("redis://") or value.startswith("rediss://"):
-            return value
-        raise ValueError("REDIS_URL must start with redis:// or rediss://")
 
     @property
     def admins(self) -> set[int]:
@@ -68,6 +63,14 @@ class Settings(BaseSettings):
         path = self.data_path / "renders"
         path.mkdir(parents=True, exist_ok=True)
         return path
+
+    @property
+    def using_postgres(self) -> bool:
+        return self.database_url.startswith("postgresql+asyncpg")
+
+    @property
+    def using_redis(self) -> bool:
+        return bool(self.redis_url.strip())
 
 
 @lru_cache
