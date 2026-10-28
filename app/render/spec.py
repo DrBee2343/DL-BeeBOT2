@@ -5,14 +5,18 @@ from pydantic import BaseModel, Field
 
 class BaseSlot(BaseModel):
     key: str
-    label: str = ""
-    box: tuple[int, int, int, int]          # x1, y1, x2, y2 — absolute
+    box: tuple[int, int, int, int]
     required: bool = False
-    patch: bool = True                      # erase old value from eraser plate first
+    patch: bool = True
+    ink: Literal["dark", "light", "red", "ghost", "none"] = "dark"
 
 
 class TextSlot(BaseSlot):
     type: Literal["text"] = "text"
+    label: str = ""
+    prompt: str = ""
+    hint: str = ""
+    validator: str = "text"
     font: str = "RobotoCondensed-Regular.ttf"
     size: int = 52
     color: str = "#1a1a1a"
@@ -23,6 +27,8 @@ class TextSlot(BaseSlot):
     min_size: int = 20
     uppercase: bool = False
     letter_spacing: float = 0.0
+    default: str = ""
+    editable: bool = True
 
 
 class ImageSlot(BaseSlot):
@@ -43,13 +49,19 @@ class TemplateSpec(BaseModel):
     id: str
     name: str
     canvas: tuple[int, int]
-    plate: str                                # master plate, static content intact
-    eraser: str | None = None                 # clean plate, patches old values
+    plate: str
+    bezel_crop: tuple[int, int, int, int] | None = None
+    cost: int = 1
     slots: list[Slot]
-    bezel_crop: tuple[int, int, int, int] | None = None   # FLAT mode only
 
     def text_slots(self) -> list[TextSlot]:
         return [s for s in self.slots if isinstance(s, TextSlot)]
 
     def image_slots(self) -> list[ImageSlot]:
         return [s for s in self.slots if isinstance(s, ImageSlot)]
+
+    def asked_slots(self) -> list[TextSlot]:
+        return [s for s in self.slots if isinstance(s, TextSlot) and s.required]
+
+    def editable_slots(self) -> list[TextSlot]:
+        return [s for s in self.slots if isinstance(s, TextSlot) and s.editable]
