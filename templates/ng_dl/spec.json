@@ -1,0 +1,58 @@
+{
+  "id": "ng_dl",
+  "name": "Nigeria Driver's Licence",
+  "canvas": [2048, 1293],
+  "plate": "ng_dl/plate.png",
+  "eraser": "ng_dl/eraser.png",
+  "bezel_crop": [33, 33, 2015, 1260],
+  "slots": [
+    { "key": "lno", "type": "text", "box": [240, 268, 613, 328],
+      "font": "RobotoCondensed-Bold.ttf", "size": 62, "color": "#ffffff", "uppercase": true },
+
+    { "key": "state_full", "type": "text", "box": [1600, 200, 1954, 270],
+      "font": "RobotoCondensed-Bold.ttf", "size": 56, "color": "#c0392b", "align": "right", "uppercase": true },
+
+    { "key": "dob", "type": "text", "box": [894, 366, 1374, 474],
+      "font": "RobotoCondensed-Bold.ttf", "size": 74, "color": "#c0392b" },
+
+    { "key": "iss", "type": "text", "box": [1656, 320, 1987, 408],
+      "font": "RobotoCondensed-Regular.ttf", "size": 62, "color": "#1a1a1a" },
+    { "key": "exp", "type": "text", "box": [1656, 386, 1987, 474],
+      "font": "RobotoCondensed-Regular.ttf", "size": 62, "color": "#1a1a1a" },
+
+    { "key": "name", "type": "text", "box": [737, 466, 1954, 550],
+      "font": "RobotoCondensed-Bold.ttf", "size": 68, "color": "#1a1a1a", "max_lines": 1 },
+
+    { "key": "address", "type": "text", "box": [737, 540, 1317, 710],
+      "font": "RobotoCondensed-Regular.ttf", "size": 52, "color": "#1a1a1a", "max_lines": 3 },
+
+    { "key": "sex", "type": "text", "box": [853, 722, 906, 778],
+      "font": "RobotoCondensed-Bold.ttf", "size": 52 },
+    { "key": "ht", "type": "text", "box": [1159, 722, 1325, 778],
+      "font": "RobotoCondensed-Bold.ttf", "size": 52 },
+    { "key": "state_code", "type": "text", "box": [1755, 722, 1896, 778],
+      "font": "RobotoCondensed-Bold.ttf", "size": 52, "uppercase": true },
+
+    { "key": "bl", "type": "text", "box": [853, 813, 939, 869], "size": 52, "font": "RobotoCondensed-Bold.ttf" },
+    { "key": "fmarks", "type": "text", "box": [1283, 813, 1329, 869], "size": 52, "font": "RobotoCondensed-Bold.ttf" },
+    { "key": "gl", "type": "text", "box": [1473, 813, 1509, 869], "size": 52, "font": "RobotoCondensed-Bold.ttf" },
+    { "key": "rep", "type": "text", "box": [1705, 813, 1741, 869], "size": 52, "font": "RobotoCondensed-Bold.ttf" },
+    { "key": "ren", "type": "text", "box": [1920, 813, 1950, 869], "size": 52, "font": "RobotoCondensed-Bold.ttf" },
+    { "key": "end", "type": "text", "box": [853, 913, 899, 969], "size": 52, "font": "RobotoCondensed-Bold.ttf" },
+
+    { "key": "nok", "type": "text", "box": [944, 979, 1333, 1035],
+      "font": "RobotoCondensed-Bold.ttf", "size": 52 },
+    { "key": "first_iss", "type": "text", "box": [1184, 1054, 1548, 1110],
+      "font": "RobotoCondensed-Bold.ttf", "size": 52 },
+
+    { "key": "photo", "type": "image", "box": [116, 414, 571, 985], "fit": "cover" },
+
+    { "key": "ghost", "type": "image", "box": [1450, 640, 1970, 1250],
+      "fit": "cover", "opacity": 0.12, "desaturate": true, "contrast": 1.25,
+      "behind_text": true },
+
+    { "key": "holder_sign", "type": "text", "box": [993, 1078, 1423, 1194],
+      "font": "MrsSaintDelafield-Regular.ttf", "size": 88, "color": "#1a1a1a",
+      "align": "left", "valign": "middle" }
+  ]
+}
