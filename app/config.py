@@ -1,6 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -19,7 +20,7 @@ class Settings(BaseSettings):
     free_generations: int = 2
     default_validity_years: int = 3
     render_timeout_s: int = 40
-    max_concurrent_renders: int = 4
+    max_concurrent_renders: int = 2
     render_cost: int = 1
 
     paystack_secret_key: str = ""
@@ -27,6 +28,22 @@ class Settings(BaseSettings):
     crypto_usdc_base_address: str = ""
 
     log_level: str = "INFO"
+
+    @field_validator("database_url")
+    @classmethod
+    def _async_driver(cls, value: str) -> str:
+        if value.startswith("postgres://"):
+            return value.replace("postgres://", "postgresql+asyncpg://", 1)
+        if value.startswith("postgresql://"):
+            return value.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return value
+
+    @field_validator("redis_url")
+    @classmethod
+    def _redis_scheme(cls, value: str) -> str:
+        if value.startswith("redis://") or value.startswith("rediss://"):
+            return value
+        raise ValueError("REDIS_URL must start with redis:// or rediss://")
 
     @property
     def admins(self) -> set[int]:
