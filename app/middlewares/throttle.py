@@ -3,7 +3,7 @@ from typing import Any, Awaitable, Callable
 from aiogram import BaseMiddleware
 from aiogram.types import CallbackQuery, TelegramObject
 
-from app.services.dedupe import get_redis
+from app.services.kv import backend
 
 PER_SECOND = 4
 
@@ -19,12 +19,7 @@ class ThrottleMiddleware(BaseMiddleware):
         if user is None:
             return await handler(event, data)
 
-        r = await get_redis()
-        key = f"thr:{user.id}"
-        count = await r.incr(key)
-        if count == 1:
-            await r.expire(key, 1)
-
+        count = await backend().incr(f"thr:{user.id}", 1)
         if count > PER_SECOND and isinstance(event, CallbackQuery):
             await event.answer("Slow down a moment.")
             return None
