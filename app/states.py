@@ -2,17 +2,24 @@ from aiogram.fsm.state import State, StatesGroup
 
 
 class GenFlow(StatesGroup):
-    browsing = State()
-    collecting = State()
+    picking = State()
+    photo = State()
+    background = State()
+    fields = State()
     confirming = State()
     rendering = State()
 
 
 class EditFlow(StatesGroup):
-    menu = State()
-    awaiting_value = State()
+    picking = State()
+    value = State()
 
 
 class Billing(StatesGroup):
-    choosing_plan = State()
-    awaiting_proof = State()
+    picking = State()
+    awaiting_crypto = State()
+
+
+class AdminFlow(StatesGroup):
+    user_lookup = State()
+    grant = State()
