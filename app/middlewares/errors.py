@@ -5,9 +5,9 @@ from aiogram import BaseMiddleware
 from aiogram.types import CallbackQuery, Message, TelegramObject
 
 from app.config import settings
-from app.texts import ERR_GENERIC
+from app.texts import GENERIC_ERROR
 
-log = logging.getLogger(__name__)
+log = logging.getLogger("errors")
 
 
 class ErrorMiddleware(BaseMiddleware):
@@ -19,24 +19,28 @@ class ErrorMiddleware(BaseMiddleware):
     ) -> Any:
         try:
             return await handler(event, data)
-        except Exception as exc:
-            log.exception("handler_failed: %s", exc)
-            await self._notify(event, exc)
+        except Exception as exc:  # noqa: BLE001
+            log.exception("handler failed")
+            await self._tell_user(event)
+            await self._tell_admins(event, exc)
             return None
 
-    async def _notify(self, event: TelegramObject, exc: Exception) -> None:
-        ref = f"`{type(exc).__name__}`"
+    async def _tell_user(self, event: TelegramObject) -> None:
         try:
             if isinstance(event, CallbackQuery):
-                await event.answer(ERR_GENERIC, show_alert=True)
+                await event.answer(GENERIC_ERROR, show_alert=True)
             elif isinstance(event, Message):
-                await event.answer(ERR_GENERIC)
-        except Exception:
+                await event.answer(GENERIC_ERROR)
+        except Exception:  # noqa: BLE001
             pass
 
-        bot = event.bot
+    async def _tell_admins(self, event: TelegramObject, exc: Exception) -> None:
+        bot = getattr(event, "bot", None)
+        if bot is None or not settings.admins:
+            return
+        text = f"<b>{type(exc).__name__}</b>\n<code>{exc}</code>"
         for admin in settings.admins:
             try:
-                await bot.send_message(admin, f"Error {ref}\n\n`{exc}`")
-            except Exception:
+                await bot.send_message(admin, text)
+            except Exception:  # noqa: BLE001
                 pass
