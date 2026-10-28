@@ -1,4 +1,6 @@
 from functools import lru_cache
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -10,11 +12,21 @@ class Settings(BaseSettings):
     base_url: str
     database_url: str
     redis_url: str
+
     admin_ids: str = ""
-    paystack_secret_key: str = ""
+    data_dir: str = "/data"
+
     free_generations: int = 2
-    max_retries: int = 2
-    render_timeout_s: int = 25
+    default_validity_years: int = 3
+    render_timeout_s: int = 40
+    max_concurrent_renders: int = 4
+    render_cost: int = 1
+
+    paystack_secret_key: str = ""
+    crypto_usdt_bsc_address: str = ""
+    crypto_usdc_base_address: str = ""
+
+    log_level: str = "INFO"
 
     @property
     def admins(self) -> set[int]:
@@ -26,7 +38,19 @@ class Settings(BaseSettings):
 
     @property
     def webhook_url(self) -> str:
-        return f"{self.base_url}{self.webhook_path}"
+        return f"{self.base_url.rstrip('/')}{self.webhook_path}"
+
+    @property
+    def data_path(self) -> Path:
+        path = Path(self.data_dir)
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    @property
+    def render_path(self) -> Path:
+        path = self.data_path / "renders"
+        path.mkdir(parents=True, exist_ok=True)
+        return path
 
 
 @lru_cache
