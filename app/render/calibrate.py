@@ -1,42 +1,62 @@
-"""python -m app.render.calibrate ng_dl [--diff original.png] [--boxes]"""
+"""python -m app.render.calibrate ng_dl [--boxes] [--diff reference.png] [--flat]"""
 import sys
 from pathlib import Path
 
 from PIL import Image, ImageChops, ImageDraw
 
-from app.render.pipeline import ASSET_DIR, render
+from app.render.pipeline import render
 from app.render.spec import TemplateSpec
+from app.services.normalise import build_values
 
-SPECS = Path("templates")
+TPL_DIR = Path("templates")
+DEBUG = Path("debug")
+
+SAMPLE = {
+    "surname": "DUROSARO",
+    "firstname": "ABDULBAASIT",
+    "middlename": "ADETUNJI",
+    "dob": "03-11-2006",
+    "address": "SAGBON COMPOUND\nOKE AGBENI",
+    "state": "OYO",
+    "sex": "M",
+    "ht": "1.98M",
+    "nok": "08134567890",
+    "first_iss": "10-06-2022",
+    "lno": "ABC03746AA06",
+}
 
 
 def main() -> None:
-    tpl_id = sys.argv[1]
-    spec = TemplateSpec.model_validate_json((SPECS / tpl_id / "spec.json").read_text())
-    out = Path("debug") / f"{tpl_id}_render.png"
-    out.parent.mkdir(exist_ok=True)
+    template_id = sys.argv[1]
+    spec = TemplateSpec.model_validate_json((TPL_DIR / template_id / "spec.json").read_text())
 
-    values = {s.key: s.label or s.key.upper() for s in spec.text_slots()}
-    photos = {s.key: Image.open("debug/sample_face.png") for s in spec.image_slots()}
+    DEBUG.mkdir(exist_ok=True)
+    out = DEBUG / f"{template_id}_render.png"
 
-    render(spec, values, out, photos=photos, mode="card")
+    values = build_values(SAMPLE)
+    photos = {}
+    face = DEBUG / "sample_face.png"
+    if face.exists():
+        portrait = Image.open(face).convert("RGBA")
+        photos = {slot.key: portrait for slot in spec.image_slots()}
+
+    render(spec, values, out, photos=photos, mode="flat" if "--flat" in sys.argv else "card")
 
     if "--boxes" in sys.argv:
         dbg = Image.open(out).convert("RGB")
-        d = ImageDraw.Draw(dbg)
-        for s in spec.slots:
-            x1, y1, x2, y2 = s.box
-            d.rectangle((x1, y1, x2, y2), outline="#ff00ff", width=3)
-            d.text((x1 + 4, y1 + 4), s.key, fill="#ff00ff")
-        dbg.save(Path("debug") / f"{tpl_id}_boxes.png")
+        pen = ImageDraw.Draw(dbg)
+        for slot in spec.slots:
+            x1, y1, x2, y2 = slot.box
+            pen.rectangle((x1, y1, x2, y2), outline="#ff00ff", width=3)
+            pen.text((x1 + 4, y1 + 4), slot.key, fill="#ff00ff")
+        dbg.save(DEBUG / f"{template_id}_boxes.png")
 
     if "--diff" in sys.argv:
         ref = Image.open(sys.argv[sys.argv.index("--diff") + 1]).convert("RGB")
         ref = ref.resize(spec.canvas, Image.LANCZOS)
-        blend = Image.blend(ref, Image.open(out).convert("RGB"), 0.5)
-        blend.save(Path("debug") / f"{tpl_id}_blend.png")
-        ImageChops.difference(ref, Image.open(out).convert("RGB")).save(
-            Path("debug") / f"{tpl_id}_delta.png")
+        cur = Image.open(out).convert("RGB")
+        Image.blend(ref, cur, 0.5).save(DEBUG / f"{template_id}_blend.png")
+        ImageChops.difference(ref, cur).save(DEBUG / f"{template_id}_delta.png")
 
     print(f"wrote {out}")
 
