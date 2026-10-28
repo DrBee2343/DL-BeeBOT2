@@ -13,7 +13,6 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# bake the portrait cutout model into the image — no cold-start download
 RUN python -c "from rembg import new_session; new_session('u2net_human_seg')"
 
 COPY . .
