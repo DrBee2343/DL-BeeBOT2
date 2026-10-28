@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.types import Update
 from fastapi import FastAPI, Request
@@ -16,7 +17,8 @@ from app.db import dispose, init_models
 from app.handlers import billing, generate, start
 from app.middlewares.errors import ErrorMiddleware
 from app.middlewares.throttle import ThrottleMiddleware
-from app.services.dedupe import close_redis, first_time, get_redis
+from app.services import kv
+from app.services.dedupe import first_time
 
 logging.basicConfig(
     level=settings.log_level,
@@ -24,7 +26,7 @@ logging.basicConfig(
 )
 log = logging.getLogger("bot")
 
-storage = RedisStorage.from_url(settings.redis_url)
+storage = RedisStorage.from_url(settings.redis_url) if settings.using_redis else MemoryStorage()
 dp = Dispatcher(storage=storage)
 dp.update.outer_middleware(ErrorMiddleware())
 dp.update.outer_middleware(ThrottleMiddleware())
@@ -45,17 +47,23 @@ async def _process(update: Update) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_models()
-    await get_redis()
-    await bot.set_webhook(
-        settings.webhook_url,
-        drop_pending_updates=True,
-        allowed_updates=dp.resolve_used_update_types(),
-    )
-    log.info("webhook set -> %s", settings.webhook_url)
+    if settings.base_url:
+        await bot.set_webhook(
+            settings.webhook_url,
+            drop_pending_updates=True,
+            allowed_updates=dp.resolve_used_update_types(),
+        )
+        log.info("webhook set -> %s", settings.webhook_url)
+    else:
+        log.warning("BASE_URL empty - falling back to long polling")
+        await bot.delete_webhook(drop_pending_updates=True)
+        asyncio.create_task(dp.start_polling(bot, handle_signals=False))
+    log.info("db=%s redis=%s", "postgres" if settings.using_postgres else "sqlite",
+             "on" if settings.using_redis else "off")
     yield
     await bot.delete_webhook()
     await bot.session.close()
-    await close_redis()
+    await kv.close()
     await dispose()
 
 
@@ -64,7 +72,11 @@ app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None)
 
 @app.get("/health")
 async def health() -> dict:
-    return {"ok": True}
+    return {
+        "ok": True,
+        "db": "postgres" if settings.using_postgres else "sqlite",
+        "redis": settings.using_redis,
+    }
 
 
 @app.post(settings.webhook_path)
