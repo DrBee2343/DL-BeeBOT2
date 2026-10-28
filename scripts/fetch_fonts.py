@@ -1,4 +1,4 @@
-"""Fetch and prepare renderer fonts. Runs at image build."""
+"""Fetch and prepare renderer fonts. Runs during the Docker build."""
 from pathlib import Path
 from urllib.request import urlretrieve
 
@@ -15,6 +15,7 @@ STATIC = {
     "MrsSaintDelafield-Regular.ttf": "ofl/mrssaintdelafield/MrsSaintDelafield-Regular.ttf",
     "ArchivoBlack-Regular.ttf": "ofl/archivoblack/ArchivoBlack-Regular.ttf",
 }
+
 VARIABLE = {
     "RobotoCondensed[wght].ttf": {
         "source": "ofl/robotocondensed/RobotoCondensed%5Bwght%5D.ttf",
@@ -33,7 +34,7 @@ def fetch(rel: str, dest: Path) -> None:
             urlretrieve(mirror + rel, dest)
             print(f"  fetched {rel}")
             return
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             err = exc
     raise RuntimeError(f"could not fetch {rel}: {err}")
 
@@ -60,7 +61,7 @@ def main() -> None:
             font.save(dest)
             print(f"  built {target} {axes}")
 
-    print("ready:", sorted(p.name for p in OUT.glob("*.ttf")))
+    print("fonts ready:", sorted(p.name for p in OUT.glob("*.ttf")))
 
 
 if __name__ == "__main__":
