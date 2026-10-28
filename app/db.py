@@ -1,16 +1,18 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.config import settings
 
-engine = create_async_engine(
-    settings.database_url,
-    pool_pre_ping=True,
-    pool_size=5,
-    max_overflow=10,
-)
+if settings.database_url.startswith("sqlite"):
+    Path("/data").mkdir(parents=True, exist_ok=True)
+    engine = create_async_engine(settings.database_url, pool_pre_ping=True)
+else:
+    engine = create_async_engine(
+        settings.database_url, pool_pre_ping=True, pool_size=5, max_overflow=10
+    )
 
 SessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
